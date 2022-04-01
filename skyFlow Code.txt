@@ -1,0 +1,131 @@
+const express = require("express");
+const bodyparser = require('body-parser');
+const localhost = '127.0.0.1';
+const port = 8000;
+//const AWS = require('aws-sdk');
+//var cors = require('cors');
+const app = express();
+app.use(express.json());
+// app.use(cors());
+app.use(bodyparser.urlencoded({ extended: false }));
+
+//const path = require('path');
+// const PDFData = require("./models/Conn");
+// const connect = require('skyflow-node');
+
+
+
+
+const { generateBearerToken, isExpired, Skyflow } = require('skyflow-node');
+const req = require("express/lib/request");
+
+let filepath = 'D:/createpdf/src/credentials.json';
+let bearerToken = ""
+
+
+const client = Skyflow.init({
+    // Id of the vault that the client should connect to
+    vaultID: '',
+    // URL of the vault that the client should connect to  
+    vaultURL: '',
+    // Helper function generates a Skyflow bearer token
+    getBearerToken: getSkyflowBearerToken,
+});
+
+
+function getSkyflowBearerToken() {
+    return new Promise(async (resolve, reject) => {
+        try {
+            if (!isExpired(bearerToken)) resolve(bearerToken)
+            else {
+                let response = await generateBearerToken(filepath);
+                bearerToken = response.accessToken;
+                console.log(response);
+                resolve(bearerToken);
+
+            }
+        } catch (e) {
+            reject(e);
+        }
+    });
+
+}
+
+
+
+app.post('/insertData', (req, res) => {
+
+    try {
+        console.log(req.body);
+        const getresponse = client.insert({
+            records: [{
+                fields: {
+                    card_number: req.body.card_number,
+                    cardholder_name: req.body.cardholder_name,
+                    expiry_date: req.body.expiry_date,
+                    bank_account_type: req.body.bank_account_type
+
+                },
+                table: 'credit_cards',
+            },],
+
+        }, {
+            tokens: true
+        });
+        getresponse.then(
+            (ress) => {
+                res.send({ status: 'success', data: ress })
+                // console.log(JSON.stringify(ress));
+            },
+            (err) => {
+                console.log(JSON.stringify(err));
+            }
+        );
+    } catch (error) {
+        res.send(error);
+    }
+});
+
+
+
+
+// This is for get the Tokenize data from the skyflow.
+
+
+
+app.get('/getData', (req, res) => {
+    // let skyflowIds = ['f68028fb-ac4c-4fe3-8eb1-20a6eedcf6c5'];
+    try {
+        let record = {
+            ids: [req.body.ids],
+            table: req.body.table,
+            redaction: req.body.redaction
+        };
+
+
+
+        let records = {
+            records: [record]
+        };
+        console.log(req.body);
+        const result = client.getById(records);
+        result.then(
+            (ress) => {
+                res.send({ status: 'success', data: ress })
+                console.log(JSON.stringify(ress));
+            }).catch((err) => {
+                console.log(JSON.stringify(err));
+                res.send(err);
+            });
+    } catch (error) {
+       console.log(error);
+    }
+
+});
+
+
+
+
+app.listen(port, localhost, () => {
+    console.log(`This port is listning on port number ${port}`);
+});
